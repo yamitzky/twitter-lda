@@ -1,7 +1,11 @@
+# -*- coding: utf-8; -*-
 import re
 
 from pymongo import MongoClient
 import MeCab
+
+# use all words, or only noun and basic form of verb
+all_word = False
 
 client = MongoClient('localhost')
 db = client.tweets
@@ -9,7 +13,9 @@ tagger = MeCab.Tagger()
 
 regex = re.compile("https?://[\w/:%#\$&\?\(\)~\.=\+\-]+")
 
-with open("tmp/corpus.tsv", "w") as f:
+filename = "tmp/corpus%s.tsv" % ("" if all_word else "-noun")
+
+with open(filename, "w") as f:
     result = db.tweets.find()
     f.write("%d\n" % result.count())
     for tweet in result:
@@ -28,7 +34,18 @@ with open("tmp/corpus.tsv", "w") as f:
         for part in tagger.parse(text.encode("utf-8")).split("\n"):
             if part == 'EOS':
                 break
-            words.append(part.split("\t")[0])
+            if all_word:
+                words.append(part.split("\t")[0])
+            else:
+                word, feature = part.split("\t")
+                features = feature.split(",")
+                if features[0] == "名詞":
+                    words.append(word)
+                elif features[0] == "動詞":
+                    orig = features[6]
+                    if orig != "*":
+                        words.append(orig)
+
         words.extend(domains)
         words.extend(hashtags)
         words = [word.decode("utf-8") for word in words]
